@@ -1,0 +1,22 @@
+{
+  "name": "bank-management-module",
+  "version": "1.0.0",
+  "description": "solution to the second task (bank management module)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "build": "echo \"Build script not defined\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/159753Maks/bank-management-module.git"
+  },
+  "author": "Berkin Maksym",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/159753Maks/bank-management-module/issues"
+  },
+  "homepage": "https://github.com/159753Maks/bank-management-module#readme"
+}
