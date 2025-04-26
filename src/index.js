@@ -42,4 +42,25 @@ class Bank {
         }
     }
 
+    register({ name, balance }) { // Method to register a new account
+        for (const id in this.accounts) { // Loop through existing accounts to check for duplicates
+            if (this.accounts[id].name === name) { // Check if the name already exists
+                this.emit('error', `Account with name ${name} already exists.`); // Emit an error if it does
+                return; // Exit the function if a duplicate is found
+            }
+        }
+
+        if (!Number.isFinite(balance)) { // Check if the balance is a finite number
+            this.emit('error', 'Initial balance must be a positive number'); // Emit an error if it is not
+            return; // Exit the function if the balance is invalid
+
+        }
+
+        const personId = this.nextId++; // Generate a new unique identifier for the account
+        this.accounts[personId] = { // Create a new account object and add it to the accounts array
+            name, // Store the name of the account holder
+            balance // Store the initial balance
+        };
+        return personId; // Return the unique identifier of the new account
+    }
 } 
