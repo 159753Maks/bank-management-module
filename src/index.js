@@ -63,4 +63,50 @@ class Bank {
         };
         return personId; // Return the unique identifier of the new account
     }
-} 
+
+    handleAdd(personId, amount) { // Method to handle adding money to an account
+        if (!Number.isFinite(amount)) { // Check if the amount is a finite number
+            this.emit('error', 'Amount must be a positive number'); // Emit an error if it is not
+            return; // Exit the function if the amount is invalid
+        }
+
+        this.accounts[personId].balance += amount; // Add the amount to the account balance
+    }
+
+    handleGet(personId, callback) { // Method to handle getting the balance of an account
+        if (typeof callback !== 'function') { // Check if the callback is a function
+            this.emit('error', 'Callback must be a function'); // Emit an error if it is not
+            return; // Exit the function if the callback is invalid
+        }
+
+        callback(this.accounts[personId].balance); // Call the callback with the current balance of the account
+    }
+
+    handleWithdraw(personId, amount) { // Method to handle withdrawing money from an account
+        if (!Number.isFinite(amount) || amount <= 0) { // Check if the amount is a finite number and greater than zero
+            this.emit('error', 'Amount must be a positive number'); // Emit an error if it is not
+            return; // Exit the function if the amount is invalid
+        }
+        const newBalance = this.accounts[personId].balance - amount; // Calculate the new balance after withdrawal
+        if (newBalance < 0) { // Check if the new balance is negative
+            this.emit('error', 'Insufficient funds'); // Emit an error if there are insufficient funds
+            return; // Exit the function if there are insufficient funds
+        }
+        this.accounts[personId].balance = newBalance; // Update the account balance
+    }
+
+}
+
+const bank = new Bank();
+const personId = bank.register({
+    name: 'Pitter Black',
+    balance: 100
+});
+bank.emit('add', personId, 20);
+bank.emit('get', personId, (balance) => {
+    console.log(`I have ${balance}₴`); // I have 120₴
+});
+bank.emit('withdraw', personId, 50);
+bank.emit('get', personId, (balance) => {
+    console.log(`I have ${balance}₴`); // I have 70₴
+});
