@@ -21,10 +21,12 @@ class Bank {
             return; // Exit the function after handling the error
         }
 
-        const personId = args[0]; // Extract the personId from the arguments
-        if (!this.accounts[personId]) { // Check if the personId exists in the accounts array
-            this.emit('error', `Account with ID ${personId} does not exist.`); // If not, emit an error event
-            return; // Exit the function if the account does not exist
+        if (eventName !== 'send') { // Check if the event name is not 'send'
+            const personId = args[0]; // Extract the personId from the arguments
+            if (!this.accounts[personId]) { // Check if there is an account with the given personId
+                this.emit('error', `Account with ID ${personId} does not exist`); // Emit an error if it does not exist
+                return; // Exit the function if the account does not exist
+            }
         }
 
         switch (eventName) { // Switch statement to handle different event types
@@ -37,6 +39,9 @@ class Bank {
             case 'withdraw':
                 this.handleWithdraw(personId, args[1]); // Call the handleWithdraw method with the personId and amount
                 break; // Exit the switch statement after handling the withdraw event
+            case 'send':
+                this.handleSend(personId, args[1], args[2]); // Call the handleSend method with the personId and amount and recipient
+                break; // Exit the switch statement after handling the send event
             default:
                 this.emit('error', `Unknown event: ${eventName}`); // Emit an error for unknown event types
         }
@@ -95,18 +100,66 @@ class Bank {
         this.accounts[personId].balance = newBalance; // Update the account balance
     }
 
+    handleSend(fromId, toId, amount) { // Method to handle sending money from one account to another
+
+        if (!this.accounts[fromId]) { // Check if the sender's account exists
+            this.emit('error', `Sender account with ID ${fromId} does not exist`); // Emit an error if it does not exist
+            return; // Exit the function if the sender's account does not exist
+        }
+
+        if (!this.accounts[toId]) { // Check if the recipient's account exists
+            this.emit('error', `Recipient account with ID ${toId} does not exist`); // Emit an error if it does not exist
+            return; // Exit the function if the recipient's account does not exist
+        }
+
+        if (fromId === toId) { // Check if the sender and recipient are the same
+            this.emit('error', 'Sender and recipient cannot be the same'); // Emit an error if they are the same
+            return; // Exit the function if they are the same
+        }
+
+        if (!Number.isFinite(amount) || amount <= 0) { // Check if the amount is a finite number and greater than zero
+            this.emit('error', 'Amount to send must be a positive number'); // Emit an error if it is not
+            return; // Exit the function if the amount is invalid
+        }
+
+        if (this.accounts[fromId].balance < amount) { // Check if the sender has sufficient funds
+            this.emit('error', 'Insufficient funds for transfer'); // Emit an error if there are insufficient funds
+            return; // Exit the function if there are insufficient funds
+        }
+
+        this.accounts[fromId].balance -= amount; // Deduct the amount from the sender's balance
+        this.accounts[toId].balance += amount; // Add the amount to the recipient's balance
+    }
+
 }
 
 const bank = new Bank();
-const personId = bank.register({
+
+bank.on('error', (error) => {
+    console.error('Error:', error);
+});
+
+const personFirstId = bank.register({
     name: 'Pitter Black',
-    balance: 100
+    balance: 100,
 });
-bank.emit('add', personId, 20);
-bank.emit('get', personId, (balance) => {
-    console.log(`I have ${balance}₴`); // I have 120₴
+const personSecondId = bank.register({
+    name: 'Oliver White',
+    balance: 700,
 });
-bank.emit('withdraw', personId, 50);
-bank.emit('get', personId, (balance) => {
-    console.log(`I have ${balance}₴`); // I have 70₴
+
+bank.emit('send', personFirstId, personSecondId, 50);
+
+bank.emit('get', personSecondId, (balance) => {
+    console.log(`I have $${balance}`); // I have $750
 });
+
+bank.emit('get', personFirstId, (balance) => {
+    console.log(`I have $${balance}`); // I have $50
+});
+
+bank.emit('send', personFirstId, 999, 50); // error: recipient does not exist
+bank.emit('send', 999, personSecondId, 50); // error: sender does not exist
+bank.emit('send', personFirstId, personFirstId, 50); // error: sender and recipient are the same
+bank.emit('send', personFirstId, personSecondId, -50); // error: amount must be positive
+bank.emit('send', personFirstId, personSecondId, 1000); // error: insufficient funds for transfer
