@@ -47,7 +47,7 @@ class Bank {
         }
     }
 
-    register({ name, balance }) { // Method to register a new account
+    register({ name, balance, limit = null }) { // Method to register a new account
         for (const id in this.accounts) { // Loop through existing accounts to check for duplicates
             if (this.accounts[id].name === name) { // Check if the name already exists
                 this.emit('error', `Account with name ${name} already exists.`); // Emit an error if it does
@@ -55,16 +55,20 @@ class Bank {
             }
         }
 
-        if (!Number.isFinite(balance)) { // Check if the balance is a finite number
+        if (!Number.isFinite(balance) || balance <= 0) { // Check if the balance is a finite number
             this.emit('error', 'Initial balance must be a positive number'); // Emit an error if it is not
             return; // Exit the function if the balance is invalid
-
         }
 
+        if (limit !== null && typeof limit !== 'function') { // Check if the limit is a function
+            this.emit('error', 'Limit must be a function or null'); // Emit an error if it is not
+            return; // Exit the function if the limit is invalid    
+        }
         const personId = this.nextId++; // Generate a new unique identifier for the account
         this.accounts[personId] = { // Create a new account object and add it to the accounts array
             name, // Store the name of the account holder
-            balance // Store the initial balance
+            balance, // Store the initial balance
+            limit, // Store the limit function if provided
         };
         return personId; // Return the unique identifier of the new account
     }
@@ -92,12 +96,21 @@ class Bank {
             this.emit('error', 'Amount must be a positive number'); // Emit an error if it is not
             return; // Exit the function if the amount is invalid
         }
-        const newBalance = this.accounts[personId].balance - amount; // Calculate the new balance after withdrawal
-        if (newBalance < 0) { // Check if the new balance is negative
-            this.emit('error', 'Insufficient funds'); // Emit an error if there are insufficient funds
-            return; // Exit the function if there are insufficient funds
+
+        const currentBalance = this.accounts[personId].balance; // Get the current balance of the account
+        const updatedBalance = currentBalance - amount; // Calculate the updated balance after withdrawal
+        if (updatedBalance < 0) { // Check if the updated balance is negative
+            this.emit('error', 'Insufficient funds for withdrawal'); // Emit an error if there are insufficient funds
+            return;
         }
-        this.accounts[personId].balance = newBalance; // Update the account balance
+
+
+        const limit = this.accounts[personId].limit; // Get the limit function from the account object
+        if (limit && !limit(amount, currentBalance, updatedBalance)) { // Check if the withdrawal satisfies the limit condition
+            this.emit('error', 'Withdrawal does not satisfy limit condition'); // Emit an error if it does not
+            return;
+        }
+        this.accounts[personId].balance = updatedBalance; // Update the account balance with the new value
     }
 
     handleSend(fromId, toId, amount) { // Method to handle sending money from one account to another
@@ -122,6 +135,19 @@ class Bank {
             return; // Exit the function if the amount is invalid
         }
 
+        const currentBalance = this.accounts[fromId].balance; // Get the current balance of the sender's account
+        const updatedBalance = currentBalance - amount; // Calculate the updated balance after sending money
+        if (updatedBalance < 0) { // Check if the updated balance is negative
+            this.emit('error', 'Insufficient funds for transfer'); // Emit an error if there are insufficient funds
+            return; // Exit the function if there are insufficient funds
+        }
+
+        const limit = this.accounts[fromId].limit; // Get the limit function from the sender's account object
+        if (limit && !limit(amount, currentBalance, updatedBalance)) { // Check if the transfer satisfies the limit condition
+            this.emit('error', 'Transfer does not satisfy limit condition'); // Emit an error if it does not
+            return; // Exit the function if it does not satisfy the limit condition
+        }
+
         if (this.accounts[fromId].balance < amount) { // Check if the sender has sufficient funds
             this.emit('error', 'Insufficient funds for transfer'); // Emit an error if there are insufficient funds
             return; // Exit the function if there are insufficient funds
@@ -131,35 +157,64 @@ class Bank {
         this.accounts[toId].balance += amount; // Add the amount to the recipient's balance
     }
 
+    handleChangeLimit(personId, limitCallback) { // Method to handle changing the limit of an account
+        if (!this.accounts[personId]) { // Check if the account exists
+            this.emit('error', `Account with ID ${personId} does not exist`); // Emit an error if it does not exist
+            return; // Exit the function if the account does not exist
+        }
+        if (typeof limitCallback !== 'function') { // Check if the limit is a function
+            this.emit('error', 'Limit must be a function'); // Emit an error if it is not
+            return; // Exit the function if the limit is invalid
+        }
+        this.accounts[personId].limit = limitCallback; // Update the limit of the account
+    }
+
 }
 
 const bank = new Bank();
 
+// Подписка на ошибки
 bank.on('error', (error) => {
     console.error('Error:', error);
 });
 
-const personFirstId = bank.register({
+// Регистрация контрагента с лимитом
+const personId = bank.register({
+    name: 'Oliver White',
+    balance: 700,
+    limit: amount => amount < 10,
+});
+
+// Снятие 5 (разрешено лимитом)
+bank.emit('withdraw', personId, 5);
+bank.emit('get', personId, (balance) => {
+    console.log(`I have $${balance}`); // I have $695
+});
+
+// Тестирование changeLimit (Вариант 1)
+bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => {
+    return amount < 100 && updatedBalance > 700;
+});
+bank.emit('withdraw', personId, 5); // Ошибка: updatedBalance = 690 < 700
+
+// Тестирование других вариантов
+bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => {
+    return amount < 100 && updatedBalance > 700 && currentBalance > 800;
+}); // Ошибка: currentBalance = 695 < 800
+
+bank.emit('changeLimit', personId, (amount, currentBalance) => {
+    return currentBalance > 800;
+}); // Ошибка: currentBalance = 695 < 800
+
+bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => {
+    return updatedBalance > 900;
+}); // Ошибка: updatedBalance = 690 < 900
+
+// Тестирование send с лимитом
+const personSecondId = bank.register({
     name: 'Pitter Black',
     balance: 100,
 });
-const personSecondId = bank.register({
-    name: 'Oliver White',
-    balance: 700,
-});
-
-bank.emit('send', personFirstId, personSecondId, 50);
-
-bank.emit('get', personSecondId, (balance) => {
-    console.log(`I have $${balance}`); // I have $750
-});
-
-bank.emit('get', personFirstId, (balance) => {
-    console.log(`I have $${balance}`); // I have $50
-});
-
-bank.emit('send', personFirstId, 999, 50); // error: recipient does not exist
-bank.emit('send', 999, personSecondId, 50); // error: sender does not exist
-bank.emit('send', personFirstId, personFirstId, 50); // error: sender and recipient are the same
-bank.emit('send', personFirstId, personSecondId, -50); // error: amount must be positive
-bank.emit('send', personFirstId, personSecondId, 1000); // error: insufficient funds for transfer
+bank.emit('changeLimit', personId, (amount) => amount < 10);
+bank.emit('send', personId, personSecondId, 5); // Успех: amount = 5 < 10
+bank.emit('send', personId, personSecondId, 20); // Ошибка: amount = 20 >= 10
