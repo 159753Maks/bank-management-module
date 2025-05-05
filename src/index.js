@@ -171,50 +171,49 @@ class Bank {
 
 }
 
-const bank = new Bank();
+const bank = new Bank(); // Create a new instance of the Bank class
 
-// Подписка на ошибки
-bank.on('error', (error) => {
-    console.error('Error:', error);
+
+bank.on('error', (error) => { // Register an error event handler
+    console.error('Error: ', error); // Log the error message to the console
 });
 
-// Регистрация контрагента с лимитом
-const personId = bank.register({
-    name: 'Oliver White',
-    balance: 700,
-    limit: amount => amount < 10,
+
+const personId = bank.register({ // Register a new account with name and balance
+    name: 'Oliver White', // Name of the account holder
+    balance: 700, // Initial balance
+    limit: amount => amount < 10, // Limit function to restrict withdrawals to less than 10
 });
 
-// Снятие 5 (разрешено лимитом)
-bank.emit('withdraw', personId, 5);
-bank.emit('get', personId, (balance) => {
+
+bank.emit('withdraw', personId, 5); // Withdraw 5 from the account
+bank.emit('get', personId, (balance) => { // Get the current balance of the account
     console.log(`I have $${balance}`); // I have $695
 });
 
-// Тестирование changeLimit (Вариант 1)
-bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => {
-    return amount < 100 && updatedBalance > 700;
+
+bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => { // Change the limit of the account
+    return amount < 100 && updatedBalance > 700; // Limit condition to allow withdrawals less than 100 and updated balance greater than 700
 });
-bank.emit('withdraw', personId, 5); // Ошибка: updatedBalance = 690 < 700
+bank.emit('withdraw', personId, 5);  // Withdraw 5 from the account
 
-// Тестирование других вариантов
-bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => {
-    return amount < 100 && updatedBalance > 700 && currentBalance > 800;
-}); // Ошибка: currentBalance = 695 < 800
 
-bank.emit('changeLimit', personId, (amount, currentBalance) => {
-    return currentBalance > 800;
-}); // Ошибка: currentBalance = 695 < 800
-
-bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => {
-    return updatedBalance > 900;
-}); // Ошибка: updatedBalance = 690 < 900
-
-// Тестирование send с лимитом
-const personSecondId = bank.register({
-    name: 'Pitter Black',
-    balance: 100,
+bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => { // Change the limit of the account
+    return amount < 100 && updatedBalance > 700 && currentBalance > 800; // Limit condition to allow withdrawals less than 100 and updated balance greater than 700 and current balance greater than 800
 });
-bank.emit('changeLimit', personId, (amount) => amount < 10);
-bank.emit('send', personId, personSecondId, 5); // Успех: amount = 5 < 10
-bank.emit('send', personId, personSecondId, 20); // Ошибка: amount = 20 >= 10
+
+bank.emit('changeLimit', personId, (amount, currentBalance) => { // Change the limit of the account
+    return currentBalance > 800; // Limit condition to allow withdrawals if current balance is greater than 800
+});
+
+bank.emit('changeLimit', personId, (amount, currentBalance, updatedBalance) => { // Change the limit of the account
+    return updatedBalance > 900; // Limit condition to allow withdrawals if updated balance is greater than 900
+});
+
+const personSecondId = bank.register({ // Register a second account with name and balance
+    name: 'Pitter Black', // Name of the account holder
+    balance: 100, // Initial balance
+});
+bank.emit('changeLimit', personId, (amount) => amount < 10); // Change the limit of the first account to restrict withdrawals to less than 10
+bank.emit('send', personId, personSecondId, 5);  // Send 5 from the first account to the second account
+bank.emit('send', personId, personSecondId, 20);  // Send 20 from the first account to the second account
